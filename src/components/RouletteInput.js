@@ -13,15 +13,17 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
   const [additionalNumbers, setAdditionalNumbers] = useState(['', '', '']);
   const [hotNumbersFrequency, setHotNumbersFrequency] = useState(['', '', '']); // 빈도수 입력 필드
   const [hotNumbersInfo, setHotNumbersInfo] = useState(''); // 상위 숫자에 대한 부가 정보
+  const [isDoubleZero, setIsDoubleZero] = useState(false); // 00 입력 상태 관리
 
   // Form submission handler
   const handleSubmit = (e) => {
     e.preventDefault();
     
     // Handle special case for "00" input
-    if (inputValue === '00') {
+    if (isDoubleZero) {
       onAddResult('00');
       setInputValue('');
+      setIsDoubleZero(false);
     } else {
       const number = parseInt(inputValue);
       if (!isNaN(number) && number >= 0 && number <= 36) {
@@ -35,29 +37,81 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
     additionalNumbers.forEach((numStr, index) => {
       if (numStr === '') return; // 숫자가 없으면 건너뜀
       
+      // 00 처리
+      if (numStr === '00') {
+        // Get the frequency count (비어있으면 기본값 1 사용)
+        const frequency = hotNumbersFrequency[index] ? parseInt(hotNumbersFrequency[index]) : 1;
+        if (isNaN(frequency) || frequency <= 0 || frequency > 10) return; // 유효성 검사
+        
+        // 빈도수만큼 추가
+        for (let i = 0; i < frequency; i++) {
+          onAddResult('00');
+        }
+        return;
+      }
+      
+      // 일반 숫자 처리
+      const num = parseInt(numStr);
+      if (isNaN(num) || num < 0 || num > 36) return; // 유효성 검사
+      
       // Get the frequency count (비어있으면 기본값 1 사용)
       const frequency = hotNumbersFrequency[index] ? parseInt(hotNumbersFrequency[index]) : 1;
       if (isNaN(frequency) || frequency <= 0 || frequency > 10) return; // 유효성 검사
       
       // Add the number multiple times based on frequency
       for (let i = 0; i < frequency; i++) {
-        if (numStr === '00') {
-          onAddResult('00');
-        } else {
-          const num = parseInt(numStr);
-          if (!isNaN(num) && num >= 0 && num <= 36) {
-            onAddResult(num);
-          }
-        }
+        onAddResult(num);
       }
     });
+  };
+
+  // Main input handler
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    
+    // 00 특수 처리
+    if (value === '00') {
+      setInputValue('0');
+      setIsDoubleZero(true);
+      return;
+    }
+    
+    // 0 처리 - 두 번째 0이 입력되면 00으로 처리
+    if (value === '0' && inputValue === '0') {
+      setIsDoubleZero(true);
+      return;
+    }
+    
+    // 일반 숫자 입력
+    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 36)) {
+      setInputValue(value);
+      setIsDoubleZero(false);
+    }
   };
 
   // Additional number input handler
   const handleAdditionalNumberChange = (index, value) => {
     const newAdditionalNumbers = [...additionalNumbers];
-    newAdditionalNumbers[index] = value;
-    setAdditionalNumbers(newAdditionalNumbers);
+    
+    // 00 입력 처리
+    if (value === '00') {
+      newAdditionalNumbers[index] = '00';
+      setAdditionalNumbers(newAdditionalNumbers);
+      return;
+    }
+    
+    // 0 입력 처리 - 연속으로 0을 입력하면 00으로 변경
+    if (value === '0' && additionalNumbers[index] === '0') {
+      newAdditionalNumbers[index] = '00';
+      setAdditionalNumbers(newAdditionalNumbers);
+      return;
+    }
+    
+    // 일반 숫자 입력
+    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 36)) {
+      newAdditionalNumbers[index] = value;
+      setAdditionalNumbers(newAdditionalNumbers);
+    }
   };
 
   // Frequency input handler
@@ -105,10 +159,12 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
       <form onSubmit={handleSubmit}>
         <div className="input-container">
           <input
-            type="text"
-            placeholder="Number (0, 00, 1-36)"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder={isDoubleZero ? "00" : "Number (0-36, 00)"}
+            value={isDoubleZero ? "00" : inputValue}
+            onChange={handleInputChange}
           />
           
           <button 
@@ -143,14 +199,18 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
                   <div className="hot-number-label">#{index + 1}</div>
                   <div className="hot-number-inputs">
                     <input
-                      type="text"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       placeholder="Number"
                       value={value}
                       onChange={(e) => handleAdditionalNumberChange(index, e.target.value)}
                       className="additional-input"
                     />
                     <input
-                      type="number"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       min="1"
                       max="10"
                       placeholder="Count (optional)"
