@@ -396,6 +396,12 @@ const getPatternPredictions = (results, count = 6, isAmericanRoulette = true) =>
 export const generatePredictions = (results, count = 6, isAmericanRoulette = true) => {
   if (!results || results.length < 10) return { predictions: [] };
   
+  // All possible roulette numbers
+  let allNumbers = Array.from({ length: 37 }, (_, i) => i);
+  if (isAmericanRoulette) {
+    allNumbers.push('00');
+  }
+  
   // Generate predictions using multiple methods
   const bayesianPredictions = getBayesianPredictions(results, count, isAmericanRoulette);
   
@@ -420,15 +426,16 @@ export const generatePredictions = (results, count = 6, isAmericanRoulette = tru
     patternPredictions = getPatternPredictions(results, count, isAmericanRoulette);
   }
   
+  // Calculate randomness factor based on data size
+  // More data = less randomness
+  // 범위: 10개 데이터 = 70% 랜덤, 50개 이상 = 10% 랜덤
+  const dataSize = results.length;
+  const randomnessFactor = Math.max(0.1, Math.min(0.7, 1 - (dataSize / 50) * 0.8));
+  
   // Tally the predictions from different methods (weighted voting)
   const voteTally = {};
   
   // Initialize all possible numbers with zero votes
-  let allNumbers = Array.from({ length: 37 }, (_, i) => i);
-  if (isAmericanRoulette) {
-    allNumbers.push('00');
-  }
-  
   allNumbers.forEach(num => {
     voteTally[num] = 0;
   });
@@ -444,26 +451,55 @@ export const generatePredictions = (results, count = 6, isAmericanRoulette = tru
   };
   
   // Add weighted votes from each method
-  addVotes(bayesianPredictions, 1.0);    // Bayesian gets full weight
-  addVotes(markovPredictions, 0.8);      // Markov gets 0.8 weight
-  addVotes(sectorPredictions, 0.7);      // Sector analysis gets 0.7 weight
-  addVotes(hotColdPredictions, 0.9);     // Hot/cold analysis gets 0.9 weight
-  addVotes(patternPredictions, 0.8);     // Pattern recognition gets 0.8 weight
+  addVotes(bayesianPredictions, 1.0 * (1 - randomnessFactor));  
+  addVotes(markovPredictions, 0.8 * (1 - randomnessFactor));    
+  addVotes(sectorPredictions, 0.7 * (1 - randomnessFactor));    
+  addVotes(hotColdPredictions, 0.9 * (1 - randomnessFactor));   
+  addVotes(patternPredictions, 0.8 * (1 - randomnessFactor));   
+
+  // Add random factor to ALL numbers to ensure diversity
+  // This gives every number a chance to be selected, not just those in history
+  allNumbers.forEach(num => {
+    voteTally[num] += Math.random() * randomnessFactor;
+  });
+  
+  // Calculate how many non-history numbers to include
+  // 적은 데이터일수록 더 많은 새로운 숫자를 포함
+  const historyNumbers = new Set(results);
+  const nonHistoryCount = Math.round(count * randomnessFactor);
   
   // Select the top vote-getters
   let finalPredictions = Object.entries(voteTally)
     .sort((a, b) => b[1] - a[1])   // Sort by votes (descending)
-    .slice(0, count)                // Take the top 'count' numbers
     .map(entry => entry[0] === '00' ? '00' : parseInt(entry[0]));
+
+  // Ensure we have some numbers that haven't appeared in history
+  if (nonHistoryCount > 0 && historyNumbers.size < allNumbers.length) {
+    // 히스토리에 없는 숫자들 추출
+    const nonHistoryNumbers = allNumbers.filter(num => !historyNumbers.has(num));
+    
+    // 히스토리 기반 예측 결과
+    const historyBasedPredictions = finalPredictions
+      .filter(num => historyNumbers.has(num))
+      .slice(0, count - nonHistoryCount);
+    
+    // 히스토리에 없는 랜덤 숫자들 (randomnessFactor에 비례하는 개수)
+    const shuffledNonHistory = nonHistoryNumbers.sort(() => 0.5 - Math.random());
+    const randomPredictions = shuffledNonHistory.slice(0, nonHistoryCount);
+    
+    // 최종 예측 결과 합치기
+    finalPredictions = [...historyBasedPredictions, ...randomPredictions];
+  } else {
+    // 랜덤성이 낮을 때는 그냥 상위 득표 결과 사용
+    finalPredictions = finalPredictions.slice(0, count);
+  }
   
-  // If we have fewer than requested count, add random numbers
-  if (finalPredictions.length < count) {
-    const remainingNumbers = allNumbers.filter(num => !finalPredictions.includes(num));
-    const shuffled = remainingNumbers.sort(() => 0.5 - Math.random());
-    finalPredictions = [...finalPredictions, ...shuffled.slice(0, count - finalPredictions.length)];
+  // 마지막으로 예측 결과 셔플 - 랜덤성 강화
+  if (randomnessFactor > 0.3) {
+    finalPredictions = finalPredictions.sort(() => 0.5 - Math.random());
   }
   
   return {
-    predictions: finalPredictions.slice(0, count)
+    predictions: finalPredictions
   };
 };

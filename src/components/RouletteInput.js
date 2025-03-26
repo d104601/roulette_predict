@@ -3,19 +3,20 @@ import React, { useState } from 'react';
 /**
  * Component for entering American roulette numbers
  * @param {Object} props - Component properties
- * @param {Function} props.onAddResult - Callback function to add result
+ * @param {Function} props.onAddResult - Callback function to add result to history
+ * @param {Function} props.onAddHotNumber - Callback function to add hot number for prediction only
  * @param {Boolean} props.isAmericanRoulette - Flag for American roulette mode
+ * @param {Number} props.hotNumbersCount - Current count of hot numbers
  * @returns {JSX.Element} - Rendered component
  */
-const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
+const RouletteInput = ({ onAddResult, onAddHotNumber, isAmericanRoulette, hotNumbersCount = 0 }) => {
   const [inputValue, setInputValue] = useState('');
   const [showAdditionalInputs, setShowAdditionalInputs] = useState(false);
   const [additionalNumbers, setAdditionalNumbers] = useState(['', '', '']);
-  const [hotNumbersFrequency, setHotNumbersFrequency] = useState(['', '', '']); // 빈도수 입력 필드
   const [hotNumbersInfo, setHotNumbersInfo] = useState(''); // 상위 숫자에 대한 부가 정보
   const [isDoubleZero, setIsDoubleZero] = useState(false); // 00 입력 상태 관리
 
-  // Form submission handler
+  // Form submission handler - 일반 입력값만 처리
   const handleSubmit = (e) => {
     e.preventDefault();
     
@@ -31,22 +32,21 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
         setInputValue('');
       }
     }
+  };
+  
+  // 핫 넘버 추가 함수 - 핫 넘버만 처리 (결과 기록에는 포함 안 됨)
+  const addHotNumbers = () => {
+    let hasValidNumbers = false;
     
     // Process hot numbers with their frequencies
-    // Add each hot number multiple times based on its reported frequency
-    additionalNumbers.forEach((numStr, index) => {
+    additionalNumbers.forEach((numStr) => {
       if (numStr === '') return; // 숫자가 없으면 건너뜀
       
       // 00 처리
       if (numStr === '00') {
-        // Get the frequency count (비어있으면 기본값 1 사용)
-        const frequency = hotNumbersFrequency[index] ? parseInt(hotNumbersFrequency[index]) : 1;
-        if (isNaN(frequency) || frequency <= 0 || frequency > 10) return; // 유효성 검사
-        
-        // 빈도수만큼 추가
-        for (let i = 0; i < frequency; i++) {
-          onAddResult('00');
-        }
+        // 결과 기록에는 포함시키지 않고 예측에만 사용
+        onAddHotNumber('00');
+        hasValidNumbers = true;
         return;
       }
       
@@ -54,15 +54,15 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
       const num = parseInt(numStr);
       if (isNaN(num) || num < 0 || num > 36) return; // 유효성 검사
       
-      // Get the frequency count (비어있으면 기본값 1 사용)
-      const frequency = hotNumbersFrequency[index] ? parseInt(hotNumbersFrequency[index]) : 1;
-      if (isNaN(frequency) || frequency <= 0 || frequency > 10) return; // 유효성 검사
-      
-      // Add the number multiple times based on frequency
-      for (let i = 0; i < frequency; i++) {
-        onAddResult(num);
-      }
+      // 결과 기록에는 포함시키지 않고 예측에만 사용
+      onAddHotNumber(num);
+      hasValidNumbers = true;
     });
+    
+    // 추가 성공 후 입력 필드 초기화
+    if (hasValidNumbers) {
+      clearAdditionalInputs();
+    }
   };
 
   // Main input handler
@@ -114,20 +114,9 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
     }
   };
 
-  // Frequency input handler
-  const handleFrequencyChange = (index, value) => {
-    const newFrequency = [...hotNumbersFrequency];
-    // 1~10 사이의 숫자만 허용
-    if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 10)) {
-      newFrequency[index] = value;
-      setHotNumbersFrequency(newFrequency);
-    }
-  };
-
   // Clear additional inputs
   const clearAdditionalInputs = () => {
     setAdditionalNumbers(['', '', '']);
-    setHotNumbersFrequency(['', '', '']);
     setHotNumbersInfo('');
   };
 
@@ -135,23 +124,17 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
   const updateHotNumbersInfo = () => {
     const validNumbers = additionalNumbers.filter(num => num !== '');
     if (validNumbers.length > 0) {
-      // 각 Hot Number의 빈도수 계산 (비어있으면 1로 취급)
-      const totalFrequency = additionalNumbers.reduce((sum, num, index) => {
-        if (num === '') return sum;
-        const freq = hotNumbersFrequency[index] ? parseInt(hotNumbersFrequency[index]) : 1;
-        return sum + (isNaN(freq) ? 1 : freq);
-      }, 0);
-      
-      setHotNumbersInfo(`Adding ${totalFrequency} results to the statistics`);
+      // 유효한 핫 넘버 개수 표시
+      setHotNumbersInfo(`Adding ${validNumbers.length} hot numbers for prediction only`);
     } else {
       setHotNumbersInfo('');
     }
   };
 
-  // Update info when either numbers or frequencies change
+  // Update info when additionalNumbers change
   React.useEffect(() => {
     updateHotNumbersInfo();
-  }, [additionalNumbers, hotNumbersFrequency]);
+  }, [additionalNumbers]);
 
   return (
     <div className="roulette-input">
@@ -190,7 +173,12 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
               </button>
             </div>
             <div className="hot-numbers-info">
-              <p>Enter hot numbers provided by the casino. Count is optional (default: 1)</p>
+              <p>Enter hot numbers provided by the casino (used for prediction only)</p>
+              {hotNumbersCount > 0 && (
+                <div className="hot-numbers-count">
+                  Current hot numbers: <strong>{hotNumbersCount}</strong>
+                </div>
+              )}
             </div>
             
             <div className="hot-numbers-container">
@@ -207,17 +195,6 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
                       onChange={(e) => handleAdditionalNumberChange(index, e.target.value)}
                       className="additional-input"
                     />
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      min="1"
-                      max="10"
-                      placeholder="Count (optional)"
-                      value={hotNumbersFrequency[index]}
-                      onChange={(e) => handleFrequencyChange(index, e.target.value)}
-                      className="frequency-input"
-                    />
                   </div>
                 </div>
               ))}
@@ -228,10 +205,19 @@ const RouletteInput = ({ onAddResult, isAmericanRoulette }) => {
                 {hotNumbersInfo}
               </div>
             )}
+            
+            <button 
+              type="button" 
+              className="add-hot-numbers-button"
+              onClick={addHotNumbers}
+              disabled={!additionalNumbers.some(num => num !== '')}
+            >
+              Add Hot Numbers for Prediction
+            </button>
           </div>
         )}
 
-        <button type="submit">Enter</button>
+        <button type="submit">Enter Single Result</button>
       </form>
     </div>
   );

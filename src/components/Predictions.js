@@ -13,12 +13,21 @@ const Predictions = ({ predictions = [] }) => {
     return num % 2 === 0 ? 'black' : 'red';
   };
 
+  // Sort predictions in ascending order (00, 0, 1-36)
+  const sortedPredictions = [...predictions].sort((a, b) => {
+    if (a === '00') return -1;
+    if (b === '00') return 1;
+    if (a === 0) return -1;
+    if (b === 0) return 1;
+    return a - b;
+  });
+
   return (
     <div className="predictions">
       <h2>Predicted Numbers</h2>
-      {predictions.length > 0 ? (
+      {sortedPredictions.length > 0 ? (
         <div className="prediction-list">
-          {predictions.map((num, index) => (
+          {sortedPredictions.map((num, index) => (
             <div key={index} className="prediction-item">
               <span className={`number ${getNumberClass(num)}`}>
                 {num}

@@ -7,16 +7,32 @@ import { generatePredictions } from './components/PredictionEngineV2';
 
 function App() {
   const [results, setResults] = useState([]);
+  const [hotNumbers, setHotNumbers] = useState([]); // 핫 넘버 저장용 상태
   const [predictions, setPredictions] = useState([]);
 
-  // Add a new roulette result and update predictions if enough data
+  // Add a new roulette result and update predictions
   const addResult = (number) => {
     const newResults = [...results, number];
     setResults(newResults);
     localStorage.setItem('rouletteResults', JSON.stringify(newResults));
     
-    if (newResults.length >= 10) {
-      updatePredictions(newResults);
+    // 일반 결과와 핫 넘버를 결합하여 예측에 사용
+    const combinedData = [...newResults, ...hotNumbers];
+    if (combinedData.length >= 10) {
+      updatePredictions(combinedData);
+    }
+  };
+  
+  // Add hot numbers for prediction only (not in history)
+  const addHotNumber = (number) => {
+    const newHotNumbers = [...hotNumbers, number];
+    setHotNumbers(newHotNumbers);
+    localStorage.setItem('hotNumbers', JSON.stringify(newHotNumbers));
+    
+    // 일반 결과와 핫 넘버를 결합하여 예측에 사용
+    const combinedData = [...results, ...newHotNumbers];
+    if (combinedData.length >= 10) {
+      updatePredictions(combinedData);
     }
   };
   
@@ -30,20 +46,35 @@ function App() {
   // Load saved results from localStorage on initial load
   useEffect(() => {
     const savedResults = localStorage.getItem('rouletteResults');
+    const savedHotNumbers = localStorage.getItem('hotNumbers');
+    
+    let parsedResults = [];
+    let parsedHotNumbers = [];
+    
     if (savedResults) {
-      const parsedResults = JSON.parse(savedResults);
+      parsedResults = JSON.parse(savedResults);
       setResults(parsedResults);
-      if (parsedResults.length >= 10) {
-        updatePredictions(parsedResults);
-      }
+    }
+    
+    if (savedHotNumbers) {
+      parsedHotNumbers = JSON.parse(savedHotNumbers);
+      setHotNumbers(parsedHotNumbers);
+    }
+    
+    // 일반 결과와 핫 넘버를 결합하여 예측에 사용
+    const combinedData = [...parsedResults, ...parsedHotNumbers];
+    if (combinedData.length >= 10) {
+      updatePredictions(combinedData);
     }
   }, []);
 
   // Reset all data and clear storage
   const reset = () => {
     setResults([]);
+    setHotNumbers([]);
     setPredictions([]);
     localStorage.removeItem('rouletteResults');
+    localStorage.removeItem('hotNumbers');
   };
 
   return (
@@ -55,7 +86,12 @@ function App() {
         </div>
       </header>
       <main>
-        <RouletteInput onAddResult={addResult} isAmericanRoulette={true} />
+        <RouletteInput 
+          onAddResult={addResult}
+          onAddHotNumber={addHotNumber}
+          isAmericanRoulette={true}
+          hotNumbersCount={hotNumbers.length}
+        />
         
         <Predictions predictions={predictions} />
 
