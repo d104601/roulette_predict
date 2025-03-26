@@ -10,7 +10,10 @@ const Predictions = ({ predictions = [] }) => {
   // Determine number color (0 and 00 are green, odd is red, even is black)
   const getNumberClass = (num) => {
     if (num === 0 || num === '00') return 'green';
-    return num % 2 === 0 ? 'black' : 'red';
+    
+    // 실제 아메리칸 룰렛 색상 배치
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return redNumbers.includes(num) ? 'red' : 'black';
   };
 
   // Sort predictions in ascending order (00, 0, 1-36)

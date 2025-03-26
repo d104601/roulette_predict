@@ -11,7 +11,10 @@ const ResultHistory = ({ results = [], limit = 10 }) => {
   // Determine number color (0 and 00 are green, odd is red, even is black)
   const getNumberClass = (num) => {
     if (num === 0 || num === '00') return 'green';
-    return num % 2 === 0 ? 'black' : 'red';
+    
+    // 실제 아메리칸 룰렛 색상 배치
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return redNumbers.includes(num) ? 'red' : 'black';
   };
 
   // Display only the most recent 'limit' results
@@ -23,13 +26,14 @@ const ResultHistory = ({ results = [], limit = 10 }) => {
     
     let blackCount = 0;
     let redCount = 0;
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
     
     results.forEach(num => {
       if (num !== 0 && num !== '00') {
-        if (num % 2 === 0) {
-          blackCount++;
-        } else {
+        if (redNumbers.includes(num)) {
           redCount++;
+        } else {
+          blackCount++;
         }
       }
     });
