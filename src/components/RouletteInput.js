@@ -4,12 +4,19 @@ import React, { useState } from 'react';
  * Component for entering American roulette numbers
  * @param {Object} props - Component properties
  * @param {Function} props.onAddResult - Callback function to add result to history
- * @param {Function} props.onAddHotNumber - Callback function to add hot number for prediction only
+ * @param {Function} props.setHotNumberList - Callback function to set hot numbers for prediction
+ * @param {Function} props.clearHotNumbers - Callback function to clear hot numbers
  * @param {Boolean} props.isAmericanRoulette - Flag for American roulette mode
- * @param {Number} props.hotNumbersCount - Current count of hot numbers
+ * @param {Array} props.hotNumberList - Array of current hot numbers
  * @returns {JSX.Element} - Rendered component
  */
-const RouletteInput = ({ onAddResult, onAddHotNumber, isAmericanRoulette, hotNumbersCount = 0 }) => {
+const RouletteInput = ({ 
+  onAddResult, 
+  setHotNumberList, 
+  clearHotNumbers,
+  isAmericanRoulette, 
+  hotNumberList = [] 
+}) => {
   const [inputValue, setInputValue] = useState('');
   const [showAdditionalInputs, setShowAdditionalInputs] = useState(false);
   const [additionalNumbers, setAdditionalNumbers] = useState(['', '', '']);
@@ -34,19 +41,21 @@ const RouletteInput = ({ onAddResult, onAddHotNumber, isAmericanRoulette, hotNum
     }
   };
   
-  // 핫 넘버 추가 함수 - 핫 넘버만 처리 (결과 기록에는 포함 안 됨)
+  // 핫 넘버 추가 함수 - 기존 핫 넘버를 대체하여 예측에만 사용
   const addHotNumbers = () => {
-    let hasValidNumbers = false;
+    const newHotNumbers = [];
+    const timestamp = new Date().toISOString();
     
-    // Process hot numbers with their frequencies
+    // 입력된 핫 넘버 처리
     additionalNumbers.forEach((numStr) => {
       if (numStr === '') return; // 숫자가 없으면 건너뜀
       
       // 00 처리
       if (numStr === '00') {
-        // 결과 기록에는 포함시키지 않고 예측에만 사용
-        onAddHotNumber('00');
-        hasValidNumbers = true;
+        newHotNumbers.push({
+          number: '00',
+          timestamp
+        });
         return;
       }
       
@@ -54,13 +63,16 @@ const RouletteInput = ({ onAddResult, onAddHotNumber, isAmericanRoulette, hotNum
       const num = parseInt(numStr);
       if (isNaN(num) || num < 0 || num > 36) return; // 유효성 검사
       
-      // 결과 기록에는 포함시키지 않고 예측에만 사용
-      onAddHotNumber(num);
-      hasValidNumbers = true;
+      newHotNumbers.push({
+        number: num,
+        timestamp
+      });
     });
     
-    // 추가 성공 후 입력 필드 초기화
-    if (hasValidNumbers) {
+    // 유효한 핫 넘버가 있는 경우에만 설정
+    if (newHotNumbers.length > 0) {
+      // 핫 넘버 목록 업데이트 (기존 핫 넘버 대체)
+      setHotNumberList(newHotNumbers);
       clearAdditionalInputs();
     }
   };
@@ -120,12 +132,18 @@ const RouletteInput = ({ onAddResult, onAddHotNumber, isAmericanRoulette, hotNum
     setHotNumbersInfo('');
   };
 
+  // 모든 핫 넘버 리셋 (입력 필드 + 저장된 핫 넘버)
+  const handleClearAllHotNumbers = () => {
+    clearAdditionalInputs();
+    clearHotNumbers();
+  };
+
   // Update hot numbers info text
   const updateHotNumbersInfo = () => {
     const validNumbers = additionalNumbers.filter(num => num !== '');
     if (validNumbers.length > 0) {
       // 유효한 핫 넘버 개수 표시
-      setHotNumbersInfo(`Adding ${validNumbers.length} hot numbers for prediction only`);
+      setHotNumbersInfo(`Replace existing hot numbers with ${validNumbers.length} new numbers`);
     } else {
       setHotNumbersInfo('');
     }
@@ -135,6 +153,13 @@ const RouletteInput = ({ onAddResult, onAddHotNumber, isAmericanRoulette, hotNum
   React.useEffect(() => {
     updateHotNumbersInfo();
   }, [additionalNumbers]);
+
+  // 핫 넘버 목록을 문자열로 변환
+  const formatHotNumberList = () => {
+    if (hotNumberList.length === 0) return null;
+    
+    return hotNumberList.map(item => item.number).join(', ');
+  };
 
   return (
     <div className="roulette-input">
@@ -167,16 +192,16 @@ const RouletteInput = ({ onAddResult, onAddHotNumber, isAmericanRoulette, hotNum
               <button 
                 type="button" 
                 className="clear-button" 
-                onClick={clearAdditionalInputs}
+                onClick={handleClearAllHotNumbers}
               >
-                Clear
+                Clear All
               </button>
             </div>
             <div className="hot-numbers-info">
               <p>Enter hot numbers provided by the casino (used for prediction only)</p>
-              {hotNumbersCount > 0 && (
+              {hotNumberList.length > 0 && (
                 <div className="hot-numbers-count">
-                  Current hot numbers: <strong>{hotNumbersCount}</strong>
+                  Current hot numbers: <strong>{formatHotNumberList()}</strong>
                 </div>
               )}
             </div>
@@ -212,7 +237,7 @@ const RouletteInput = ({ onAddResult, onAddHotNumber, isAmericanRoulette, hotNum
               onClick={addHotNumbers}
               disabled={!additionalNumbers.some(num => num !== '')}
             >
-              Add Hot Numbers for Prediction
+              Set Hot Numbers for Prediction
             </button>
           </div>
         )}

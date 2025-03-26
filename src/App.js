@@ -17,22 +17,39 @@ function App() {
     localStorage.setItem('rouletteResults', JSON.stringify(newResults));
     
     // 일반 결과와 핫 넘버를 결합하여 예측에 사용
-    const combinedData = [...newResults, ...hotNumbers];
-    if (combinedData.length >= 10) {
-      updatePredictions(combinedData);
-    }
+    updatePredictionsWithData(newResults, hotNumbers);
   };
   
   // Add hot numbers for prediction only (not in history)
-  const addHotNumber = (number) => {
-    const newHotNumbers = [...hotNumbers, number];
+  // 새로운 핫 넘버가 입력되면 기존 핫 넘버를 대체
+  const setHotNumberList = (newHotNumbers) => {
     setHotNumbers(newHotNumbers);
     localStorage.setItem('hotNumbers', JSON.stringify(newHotNumbers));
     
     // 일반 결과와 핫 넘버를 결합하여 예측에 사용
-    const combinedData = [...results, ...newHotNumbers];
+    updatePredictionsWithData(results, newHotNumbers);
+  };
+  
+  // Clear hot numbers
+  const clearHotNumbers = () => {
+    setHotNumbers([]);
+    localStorage.removeItem('hotNumbers');
+    
+    // 핫 넘버 없이 예측 업데이트
+    updatePredictionsWithData(results, []);
+  };
+  
+  // Helper function to update predictions with given data
+  const updatePredictionsWithData = (resultData, hotNumberData) => {
+    // 핫 넘버 값만 추출
+    const hotNumberValues = hotNumberData.map(hn => hn.number);
+    // 일반 결과와 핫 넘버를 결합
+    const combinedData = [...resultData, ...hotNumberValues];
+    
     if (combinedData.length >= 10) {
       updatePredictions(combinedData);
+    } else {
+      setPredictions([]);
     }
   };
   
@@ -62,10 +79,7 @@ function App() {
     }
     
     // 일반 결과와 핫 넘버를 결합하여 예측에 사용
-    const combinedData = [...parsedResults, ...parsedHotNumbers];
-    if (combinedData.length >= 10) {
-      updatePredictions(combinedData);
-    }
+    updatePredictionsWithData(parsedResults, parsedHotNumbers);
   }, []);
 
   // Reset all data and clear storage
@@ -88,9 +102,10 @@ function App() {
       <main>
         <RouletteInput 
           onAddResult={addResult}
-          onAddHotNumber={addHotNumber}
+          setHotNumberList={setHotNumberList}
+          clearHotNumbers={clearHotNumbers}
           isAmericanRoulette={true}
-          hotNumbersCount={hotNumbers.length}
+          hotNumberList={hotNumbers}
         />
         
         <Predictions predictions={predictions} />
