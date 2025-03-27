@@ -9,6 +9,7 @@ function App() {
   const [results, setResults] = useState([]);
   const [hotNumbers, setHotNumbers] = useState([]); // 핫 넘버 저장용 상태
   const [predictions, setPredictions] = useState([]);
+  const [predictionSuccess, setPredictionSuccess] = useState([]); // 예측 성공 기록
 
   // Add a new roulette result and update predictions
   const addResult = (number) => {
@@ -16,8 +17,43 @@ function App() {
     setResults(newResults);
     localStorage.setItem('rouletteResults', JSON.stringify(newResults));
     
+    // 예측 결과에 입력한 숫자가 존재하는지 확인
+    const isSuccessfulPrediction = predictions.includes(number);
+    
+    // 성공 기록 업데이트
+    let newSuccessHistory = [...predictionSuccess];
+    
+    if (isSuccessfulPrediction) {
+      // 최근 예측 성공 기록 (숫자와 타임스탬프)
+      const newSuccess = {
+        number: number,
+        timestamp: new Date().toISOString(),
+        predicted: true
+      };
+      
+      // 성공 기록은 최대 20개까지만 유지
+      newSuccessHistory = [...newSuccessHistory, newSuccess].slice(-20);
+      setPredictionSuccess(newSuccessHistory);
+      localStorage.setItem('predictionSuccess', JSON.stringify(newSuccessHistory));
+      
+      // 성공 메시지 표시 (선택사항)
+      console.log(`Successful prediction: ${number}`);
+    } else {
+      // 예측에 실패했지만 기록은 남김
+      const newFailure = {
+        number: number,
+        timestamp: new Date().toISOString(),
+        predicted: false
+      };
+      
+      // 실패 기록도 함께 유지
+      newSuccessHistory = [...newSuccessHistory, newFailure].slice(-20);
+      setPredictionSuccess(newSuccessHistory);
+      localStorage.setItem('predictionSuccess', JSON.stringify(newSuccessHistory));
+    }
+    
     // 일반 결과와 핫 넘버를 결합하여 예측에 사용
-    updatePredictionsWithData(newResults, hotNumbers);
+    updatePredictionsWithData(newResults, hotNumbers, newSuccessHistory);
   };
   
   // Add hot numbers for prediction only (not in history)
@@ -27,7 +63,7 @@ function App() {
     localStorage.setItem('hotNumbers', JSON.stringify(newHotNumbers));
     
     // 일반 결과와 핫 넘버를 결합하여 예측에 사용
-    updatePredictionsWithData(results, newHotNumbers);
+    updatePredictionsWithData(results, newHotNumbers, predictionSuccess);
   };
   
   // Clear hot numbers
@@ -36,27 +72,27 @@ function App() {
     localStorage.removeItem('hotNumbers');
     
     // 핫 넘버 없이 예측 업데이트
-    updatePredictionsWithData(results, []);
+    updatePredictionsWithData(results, [], predictionSuccess);
   };
   
   // Helper function to update predictions with given data
-  const updatePredictionsWithData = (resultData, hotNumberData) => {
+  const updatePredictionsWithData = (resultData, hotNumberData, successHistory = predictionSuccess) => {
     // 핫 넘버 값만 추출
     const hotNumberValues = hotNumberData.map(hn => hn.number);
     // 일반 결과와 핫 넘버를 결합
     const combinedData = [...resultData, ...hotNumberValues];
     
     if (combinedData.length >= 10) {
-      updatePredictions(combinedData);
+      updatePredictions(combinedData, successHistory);
     } else {
       setPredictions([]);
     }
   };
   
   // Update predictions using the American roulette model (0, 00, 1-36)
-  const updatePredictions = (data) => {
+  const updatePredictions = (data, successHistory) => {
     // American roulette has 38 pockets (0, 00, 1-36)
-    const { predictions: newPredictions } = generatePredictions(data, 6, true);
+    const { predictions: newPredictions } = generatePredictions(data, 6, true, successHistory);
     setPredictions(newPredictions);
   };
 
@@ -64,9 +100,11 @@ function App() {
   useEffect(() => {
     const savedResults = localStorage.getItem('rouletteResults');
     const savedHotNumbers = localStorage.getItem('hotNumbers');
+    const savedPredictionSuccess = localStorage.getItem('predictionSuccess');
     
     let parsedResults = [];
     let parsedHotNumbers = [];
+    let parsedPredictionSuccess = [];
     
     if (savedResults) {
       parsedResults = JSON.parse(savedResults);
@@ -78,8 +116,13 @@ function App() {
       setHotNumbers(parsedHotNumbers);
     }
     
+    if (savedPredictionSuccess) {
+      parsedPredictionSuccess = JSON.parse(savedPredictionSuccess);
+      setPredictionSuccess(parsedPredictionSuccess);
+    }
+    
     // 일반 결과와 핫 넘버를 결합하여 예측에 사용
-    updatePredictionsWithData(parsedResults, parsedHotNumbers);
+    updatePredictionsWithData(parsedResults, parsedHotNumbers, parsedPredictionSuccess);
   }, []);
 
   // Reset all data and clear storage
@@ -87,8 +130,18 @@ function App() {
     setResults([]);
     setHotNumbers([]);
     setPredictions([]);
+    setPredictionSuccess([]);
     localStorage.removeItem('rouletteResults');
     localStorage.removeItem('hotNumbers');
+    localStorage.removeItem('predictionSuccess');
+  };
+
+  // 성공률 계산 
+  const calculateSuccessRate = () => {
+    if (predictionSuccess.length === 0) return 0;
+    
+    const successCount = predictionSuccess.filter(item => item.predicted).length;
+    return Math.round((successCount / predictionSuccess.length) * 100);
   };
 
   return (
@@ -97,6 +150,11 @@ function App() {
         <h1>American Roulette Predictor</h1>
         <div className="roulette-info">
           <span>American Roulette (0, 00, 1-36)</span>
+          {predictionSuccess.length > 0 && (
+            <span className="prediction-success-rate"> 
+              | Prediction Success: {calculateSuccessRate()}%
+            </span>
+          )}
         </div>
       </header>
       <main>
@@ -108,7 +166,10 @@ function App() {
           hotNumberList={hotNumbers}
         />
         
-        <Predictions predictions={predictions} />
+        <Predictions 
+          predictions={predictions} 
+          successHistory={predictionSuccess}
+        />
 
         <div className="results-container">
           <ResultHistory results={results} limit={10} />

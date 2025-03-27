@@ -391,9 +391,10 @@ const getPatternPredictions = (results, count = 6, isAmericanRoulette = true) =>
  * @param {Array<number|string>} results - Array of past roulette results
  * @param {number} count - Number of results to return
  * @param {boolean} isAmericanRoulette - Whether to use American roulette (includes 00)
+ * @param {Array} successHistory - History of successful predictions
  * @returns {Object} - Object containing predictions array and methods array
  */
-export const generatePredictions = (results, count = 6, isAmericanRoulette = true) => {
+export const generatePredictions = (results, count = 6, isAmericanRoulette = true, successHistory = []) => {
   if (!results || results.length < 10) return { predictions: [] };
   
   // All possible roulette numbers
@@ -426,6 +427,47 @@ export const generatePredictions = (results, count = 6, isAmericanRoulette = tru
     patternPredictions = getPatternPredictions(results, count, isAmericanRoulette);
   }
   
+  // 성공한 예측 추출 및 각 방법론의 성공률 계산
+  const successfulNumbers = new Set();
+  const methodSuccessRates = {
+    bayesian: 0.0,
+    markov: 0.0,
+    sector: 0.0,
+    hotCold: 0.0,
+    pattern: 0.0
+  };
+  
+  // 예측 성공 기록이 있는 경우
+  if (successHistory && successHistory.length > 0) {
+    // 성공한 예측 번호 추출
+    successHistory.filter(item => item.predicted).forEach(success => {
+      successfulNumbers.add(success.number);
+    });
+    
+    // 각 예측 방법의 성공률 계산
+    if (successfulNumbers.size > 0) {
+      const calculateMethodSuccessRate = (predictions) => {
+        if (!predictions || predictions.length === 0) return 0;
+        let hitCount = 0;
+        
+        predictions.forEach(num => {
+          if (successfulNumbers.has(num)) {
+            hitCount++;
+          }
+        });
+        
+        return hitCount / predictions.length;
+      };
+      
+      // 각 방법론별 성공률 계산
+      methodSuccessRates.bayesian = calculateMethodSuccessRate(bayesianPredictions);
+      methodSuccessRates.markov = calculateMethodSuccessRate(markovPredictions);
+      methodSuccessRates.sector = calculateMethodSuccessRate(sectorPredictions);
+      methodSuccessRates.hotCold = calculateMethodSuccessRate(hotColdPredictions);
+      methodSuccessRates.pattern = calculateMethodSuccessRate(patternPredictions);
+    }
+  }
+  
   // Calculate randomness factor based on data size
   // More data = less randomness
   // 범위: 10개 데이터 = 70% 랜덤, 50개 이상 = 10% 랜덤
@@ -442,20 +484,26 @@ export const generatePredictions = (results, count = 6, isAmericanRoulette = tru
   
   // Weight the predictions based on method reliability
   // These weights can be adjusted based on empirical performance
-  const addVotes = (predictions, weight) => {
+  const addVotes = (predictions, weight, successBonus = 0) => {
     predictions.forEach((num, index) => {
       // Higher ranked predictions get more votes
       const positionWeight = (predictions.length - index) / predictions.length;
-      voteTally[num] += weight * positionWeight;
+      const totalWeight = weight * positionWeight * (1 + successBonus);
+      voteTally[num] += totalWeight;
+      
+      // 이전에 성공한 번호에 추가 가중치 부여
+      if (successfulNumbers.has(num)) {
+        voteTally[num] += weight * 0.5; // 성공한 번호에 50% 추가 가중치
+      }
     });
   };
   
-  // Add weighted votes from each method
-  addVotes(bayesianPredictions, 1.0 * (1 - randomnessFactor));  
-  addVotes(markovPredictions, 0.8 * (1 - randomnessFactor));    
-  addVotes(sectorPredictions, 0.7 * (1 - randomnessFactor));    
-  addVotes(hotColdPredictions, 0.9 * (1 - randomnessFactor));   
-  addVotes(patternPredictions, 0.8 * (1 - randomnessFactor));   
+  // Add weighted votes from each method, with success-based adjustments
+  addVotes(bayesianPredictions, 1.0 * (1 - randomnessFactor), methodSuccessRates.bayesian * 2);  
+  addVotes(markovPredictions, 0.8 * (1 - randomnessFactor), methodSuccessRates.markov * 2);    
+  addVotes(sectorPredictions, 0.7 * (1 - randomnessFactor), methodSuccessRates.sector * 2);    
+  addVotes(hotColdPredictions, 0.9 * (1 - randomnessFactor), methodSuccessRates.hotCold * 2);   
+  addVotes(patternPredictions, 0.8 * (1 - randomnessFactor), methodSuccessRates.pattern * 2);   
 
   // Add random factor to ALL numbers to ensure diversity
   // This gives every number a chance to be selected, not just those in history
@@ -466,7 +514,14 @@ export const generatePredictions = (results, count = 6, isAmericanRoulette = tru
   // Calculate how many non-history numbers to include
   // 적은 데이터일수록 더 많은 새로운 숫자를 포함
   const historyNumbers = new Set(results);
-  const nonHistoryCount = Math.round(count * randomnessFactor);
+  
+  // 성공한 예측이 있는 경우 랜덤성 감소
+  let adjustedRandomnessFactor = randomnessFactor;
+  if (successfulNumbers.size > 0) {
+    adjustedRandomnessFactor = Math.max(0.05, randomnessFactor * 0.7);
+  }
+  
+  const nonHistoryCount = Math.round(count * adjustedRandomnessFactor);
   
   // Select the top vote-getters
   let finalPredictions = Object.entries(voteTally)
@@ -494,8 +549,8 @@ export const generatePredictions = (results, count = 6, isAmericanRoulette = tru
     finalPredictions = finalPredictions.slice(0, count);
   }
   
-  // 마지막으로 예측 결과 셔플 - 랜덤성 강화
-  if (randomnessFactor > 0.3) {
+  // 성공한 예측이 적거나 없으면 예측 결과 셔플
+  if (successfulNumbers.size < 2 && adjustedRandomnessFactor > 0.3) {
     finalPredictions = finalPredictions.sort(() => 0.5 - Math.random());
   }
   
