@@ -12,13 +12,18 @@ const Predictions = ({ predictions = [], successHistory = [] }) => {
   const getRecentSuccesses = () => {
     if (!successHistory || successHistory.length === 0) return new Set();
     
-    // 최근 5개의 성공한 예측만 강조 표시
-    return new Set(
-      successHistory
-        .filter(item => item.predicted)
-        .slice(-5)
-        .map(item => item.number)
-    );
+    // 최근 10개의 성공한 예측만 강조 표시 (제한 유지)
+    const recentSuccessItems = successHistory
+      .filter(item => item.predicted)
+      .slice(-10);  // 가장 최근 10개의 성공한 예측만 사용
+    
+    // 숫자와 '00'을 구분하여 정확하게 저장
+    const successSet = new Set();
+    recentSuccessItems.forEach(item => {
+      successSet.add(item.number);
+    });
+    
+    return successSet;
   };
   
   // 성공한 예측 번호 목록
@@ -26,7 +31,13 @@ const Predictions = ({ predictions = [], successHistory = [] }) => {
   
   // 예측이 최근에 성공한 적이 있는지 확인
   const isPredictionSuccessful = (num) => {
-    return recentSuccesses.has(num);
+    // 문자열 '00'과 숫자를 정확히 비교하기 위해 타입에 주의
+    const successNumbers = Array.from(recentSuccesses);
+    return successNumbers.some(successNum => {
+      if (num === '00' && successNum === '00') return true;
+      if (num !== '00' && successNum !== '00' && parseInt(num) === parseInt(successNum)) return true;
+      return false;
+    });
   };
 
   // Determine number color (0 and 00 are green, odd is red, even is black)
@@ -72,7 +83,8 @@ const Predictions = ({ predictions = [], successHistory = [] }) => {
       
       {successHistory.length > 0 && (
         <div className="prediction-stats">
-          <p>Recent predictions: <span className="success-count">{successHistory.filter(s => s.predicted).length} successful</span> out of {successHistory.length} attempts</p>
+          <p>Recent predictions: <span className="success-count">{successHistory.filter(s => s.predicted).length} successful</span> out of {successHistory.length} attempts 
+          ({Math.round((successHistory.filter(s => s.predicted).length / successHistory.length) * 100)}% success rate)</p>
         </div>
       )}
     </div>

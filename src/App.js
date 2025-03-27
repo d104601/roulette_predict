@@ -18,7 +18,12 @@ function App() {
     localStorage.setItem('rouletteResults', JSON.stringify(newResults));
     
     // 예측 결과에 입력한 숫자가 존재하는지 확인
-    const isSuccessfulPrediction = predictions.includes(number);
+    // number와 predictions 원소들의 타입(문자열 vs 숫자)을 고려하여 비교
+    const isSuccessfulPrediction = predictions.some(pred => {
+      if (number === '00' && pred === '00') return true;
+      if (number !== '00' && pred !== '00' && parseInt(number) === parseInt(pred)) return true;
+      return false;
+    });
     
     // 성공 기록 업데이트
     let newSuccessHistory = [...predictionSuccess];
@@ -31,8 +36,8 @@ function App() {
         predicted: true
       };
       
-      // 성공 기록은 최대 20개까지만 유지
-      newSuccessHistory = [...newSuccessHistory, newSuccess].slice(-20);
+      // 성공 기록 유지 (제한 없음)
+      newSuccessHistory = [...newSuccessHistory, newSuccess];
       setPredictionSuccess(newSuccessHistory);
       localStorage.setItem('predictionSuccess', JSON.stringify(newSuccessHistory));
       
@@ -46,8 +51,8 @@ function App() {
         predicted: false
       };
       
-      // 실패 기록도 함께 유지
-      newSuccessHistory = [...newSuccessHistory, newFailure].slice(-20);
+      // 실패 기록도 함께 유지 (제한 없음)
+      newSuccessHistory = [...newSuccessHistory, newFailure];
       setPredictionSuccess(newSuccessHistory);
       localStorage.setItem('predictionSuccess', JSON.stringify(newSuccessHistory));
     }
@@ -141,7 +146,14 @@ function App() {
     if (predictionSuccess.length === 0) return 0;
     
     const successCount = predictionSuccess.filter(item => item.predicted).length;
-    return Math.round((successCount / predictionSuccess.length) * 100);
+    const totalCount = predictionSuccess.length;
+    const successRate = Math.round((successCount / totalCount) * 100);
+    
+    return { 
+      successCount,
+      totalCount,
+      successRate
+    };
   };
 
   return (
@@ -152,7 +164,8 @@ function App() {
           <span>American Roulette (0, 00, 1-36)</span>
           {predictionSuccess.length > 0 && (
             <span className="prediction-success-rate"> 
-              | Prediction Success: {calculateSuccessRate()}%
+              | Prediction Success: {calculateSuccessRate().successRate}% 
+              ({calculateSuccessRate().successCount}/{calculateSuccessRate().totalCount})
             </span>
           )}
         </div>
